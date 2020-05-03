@@ -1,0 +1,94 @@
+--- 
+- name: Configure LAMP stack on Centos
+  hosts: localhost
+  tasks:
+  - name: Install firewalld service 
+    yum:
+      name: firewalld
+      state: present
+  - name: Start firewalld service 
+    service:
+      name: firewalld 
+      state: started 
+  - name: Ensure firewalld servie is running 
+    systemd: 
+      name: firewalld 
+      enabled: yes
+  
+  - name: Install mariadb service
+    yum:
+      name: mariadb-server
+      state: present
+  - name: Start mariadb service 
+    service:
+      name: mariadb 
+      state: started 
+  - name: Ensure mariadb service is started 
+    systemd: 
+      name: mariadb 
+      enabled: yes 
+  
+  - name: Configure firewall service for db 
+    command: sudo firewall-cmd --permanent --zone=public --add-port=3306/tcp
+  - name: Reload firewall service 
+    command: sudo firewall-cmd --reload
+  - name: Install MySQL-python module for db 
+    yum: 
+      name: MySQL-python
+      state: present 
+  
+  - name: Create a db with name ecomdb
+    mysql_db:
+      name: ecomdb 
+      state: present 
+  - name: Create database user  with all database privileges
+    mysql_user:
+      name: ecomuser
+      password: ecompassword
+      priv: '*.*:ALL'
+      state: present
+  - name: Load data into database 
+    shell: mysql -f < /root/ansible/db-load-script.sql
+
+  - name: Install httpd php
+    yum:
+      name: '{{ item }}'
+      state: present
+    loop:
+      - httpd 
+      - php 
+      - php-mysql 
+  - name: Configure firewall port
+    command: sudo firewall-cmd --permanent --zone=public --add-port=80/tcp
+  - name: Reload firewall service 
+    command: sudo firewall-cmd --reload
+
+  - name: Configure httpd
+    lineinfile:
+      path: /etc/httpd/conf/httpd.conf
+      regexp: '^    DirectoryIndex'
+      insertafter: '^<IfModule dir_module>'
+      line: DirectoryIndex index.php
+  - name: Start httpd service
+    service:
+      name: httpd 
+      state: started 
+  - name: Ensure httpd service is enabled
+    systemd:
+      name: httpd 
+      enabled: yes 
+
+  - name: install git 
+    yum:
+      name: git 
+      state: present 
+  - name: clone git repo 
+    git: 
+      repo: https://github.com/kodekloudhub/learning-app-ecommerce.git
+      dest: /var/www/html/
+
+  - name: Configure index.php with mysql connection details 
+    replace:
+      dest: /var/www/html/index.php
+      regexp: '172.20.1.101'
+      replace: 'localhost'
